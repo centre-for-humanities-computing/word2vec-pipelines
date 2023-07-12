@@ -30,6 +30,10 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         Underlying Gensim Word2Vec model.
     loss: list of float
         List of training losses after each call to partial_fit.
+    feature_names_in_: array of shape (n_vocab)
+        Vocabulary of the Word2Vec model.
+    components_: array of shape (n_components, n_vocab)
+        Matrix of all embeddings in the model.
     """
 
     def __init__(
@@ -144,6 +148,18 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
             if sent_res or (oov_strategy == "nan"):
                 res.append(sent_res)
         return res
+
+    @property
+    def components_(self) -> np.ndarray:
+        if self.model is None:
+            raise NotFittedError("Word2Vec model has not been fitted yet.")
+        return np.array(self.model.wv.vectors).T
+
+    @property
+    def feature_names_in_(self) -> np.ndarray:
+        if self.model is None:
+            raise NotFittedError("Word2Vec model has not been fitted yet.")
+        return np.array(self.model.wv.index_to_key)
 
     @classmethod
     def load(cls, path: str):
