@@ -5,7 +5,7 @@ from itertools import islice
 from typing import Callable, Iterable, List, Literal, Optional, TypeVar, Union
 
 
-def pipe(*transforms: Callable) -> Callable:
+def pipe_streams(*transforms: Callable) -> Callable:
     """Pipes iterator transformations together.
 
     Parameters
