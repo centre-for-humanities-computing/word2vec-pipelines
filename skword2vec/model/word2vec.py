@@ -19,7 +19,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
     window: int, default 5
         Window size of the Word2Vec model.
     algorithm: {'cbow', 'sg'}, default 'cbow'
-        Indicates whether a continusous-bag-of-words or a skip-gram
+        Indicates whether a continuous-bag-of-words or a skip-gram
         model should be trained.
     **kwargs
         Keyword arguments passed down to Gensim's Word2Vec model.
@@ -147,8 +147,33 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
 
     @classmethod
     def load(cls, path: str):
-        """Loads model."""
+        """Loads model from disk.
+
+        Parameters
+        ----------
+        path: str
+            Path to Word2Vec model.
+
+        Returns
+        -------
+        Word2VecTransformer
+            Transformer component.
+        """
         res = cls()
         res.model = Word2Vec.load(path)
         res.n_components = res.model.vector_size
         return res
+
+    def save(self, path: str):
+        """Saves model to disk.
+        Beware that this saves the Gensim model itself, so you will be able
+        to load it with Word2Vec.load() too.
+
+        Parameters
+        ----------
+        path: str
+            Path to save Word2Vec model to.
+        """
+        if self.model is None:
+            raise NotFittedError("Word2Vec model has not been fitted yet.")
+        self.model.save(path)
