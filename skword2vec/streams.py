@@ -178,6 +178,18 @@ def flatten(nested: Iterable, axis: int = 0) -> Iterable:
 
 
 def deeplist(nested) -> list:
+    """Recursively turns nested iterable to list.
+
+    Parameters
+    ----------
+    nested: iterable
+        Nested iterable.
+
+    Returns
+    -------
+    list
+        Nested list.
+    """
     if not isinstance(nested, Iterable) or isinstance(nested, str):
         return nested  # type: ignore
     else:
