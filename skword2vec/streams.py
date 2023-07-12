@@ -2,7 +2,7 @@
 import functools
 import random
 from itertools import islice
-from typing import Callable, Iterable, List, Literal, Optional, TypeVar
+from typing import Callable, Iterable, List, Literal, Optional, TypeVar, Union
 
 
 def pipe(*transforms: Callable) -> Callable:
@@ -145,20 +145,40 @@ def stream_files(
 
 
 @reusable
-def flatten(nested: Iterable[Iterable[U]]) -> Iterable[U]:
-    """
-    Function that turns a nested stream into a flat stream.
+def flatten(nested: Iterable, axis: int = 0) -> Iterable:
+    """Turns nested stream into a flat stream.
+    If multiple levels are nested, the iterable will be flattenned along
+    the given axis.
 
     Parameters
     ----------
-    nested: iterable of iterable of T
-        Nested iterable that you want to flatten
+    nested: iterable
+        Iterable of iterables of unknown depth.
+    axis: int, default 0
+        Axis/level of depth at which the iterable should be flattened.
 
-    Yields
-    ----------
-    element: T
-        Individual elements of the nested iterable
+    Returns
+    -------
+    iterable
+        Iterable with one lower level of nesting.
     """
-    for sub in nested:
-        for elem in sub:
-            yield elem
+    if not isinstance(nested, Iterable):
+        raise ValueError(
+            f"Nesting is too deep, values at level {axis} are not iterables"
+        )
+    if axis == 0:
+        for sub in nested:
+            for elem in sub:
+                yield elem
+    elif axis > 0:
+        for sub in nested:
+            yield flatten(sub, axis=axis - 1)
+    else:
+        raise ValueError("Flattening axis needs to be greater than 0.")
+
+
+def deeplist(nested) -> list:
+    if not isinstance(nested, Iterable) or isinstance(nested, str):
+        return nested  # type: ignore
+    else:
+        return [deeplist(sub) for sub in nested]
