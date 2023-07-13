@@ -7,6 +7,8 @@ from numpy.typing import ArrayLike
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.exceptions import NotFittedError
 
+from skword2vec.streams import deeplist, flatten
+
 
 class Word2VecTransformer(BaseEstimator, TransformerMixin):
     """Scikit-learn compatible Word2Vec model.
@@ -60,13 +62,13 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self.loss: list[float] = []
         self.oov_strategy = oov_strategy
 
-    def fit(self, sentences: Iterable[Iterable[str]], y=None):
+    def fit(self, documents: Iterable[Iterable[Iterable[str]]], y=None):
         """Fits the word2vec model to the given sentences.
 
         Parameters
         ----------
-        sentences: iterable of iterable of str
-            List of sentences as list of tokens.
+        documents: deep iterable with dimensions (documents, sentences, words)
+            Words in each sentence in each document.
         y: None
             Ignored. Exists for compatibility.
 
@@ -82,16 +84,18 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
             workers=self.n_jobs,
             **self.kwargs,
         )
-        self.partial_fit(sentences)
+        self.partial_fit(documents)
         return self
 
-    def partial_fit(self, sentences: Iterable[Iterable[str]], y=None):
+    def partial_fit(
+        self, documents: Iterable[Iterable[Iterable[str]]], y=None
+    ):
         """Partially fits word2vec model (online fitting).
 
         Parameters
         ----------
-        sentences: iterable of iterable of str
-            List of sentences as list of tokens.
+        documents: deep iterable with dimensions (documents, sentences, words)
+            Words in each sentence in each document.
         y: None
             Ignored. Exists for compatibility.
 
@@ -100,6 +104,8 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self
             Fitted model.
         """
+        sentences = flatten(documents, axis=0)
+        sentences = deeplist(sentences)
         if self.model is None:
             self.model = Word2Vec(
                 vector_size=self.n_components,
@@ -121,38 +127,42 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(
-        self,
-        sentences: Iterable[Iterable[str]],
+        self, documents: Iterable[Iterable[Iterable[str]]]
     ) -> ak.Array:
         """Infers word vectors for all sentences.
 
         Parameters
         ----------
-        sentences: iterable of iterable of str
-            List of sentences as list of tokens.
+        documents: deep iterable with dimensions (documents, sentences, words)
+            Words in each sentence in each document.
 
         Returns
         -------
-        awkward.Array of shape (n_sentences, n_words, n_dimensions)
-            Ragged array of word embeddings in each sentence.
+        awkward.Array with dimensions (documents, sentences, words, dimensions)
+            Ragged array of word embeddings in each sentence in each document.
             Note that this array can potentially not be used for other
             applications due to its awkward shape, and you will either
             have to do pooling or padding to turn it into a numpy array.
         """
+        documents = deeplist(documents)
         if self.model is None:
             raise NotFittedError("Word2Vec model has not been fitted yet.")
         res = []
-        for sentence in sentences:
-            sent_res = []
-            for word in sentence:
-                try:
-                    embedding = self.model.wv[word]
-                    sent_res.append(embedding)
-                except KeyError:
-                    if self.oov_strategy == "nan":
-                        sent_res.append(np.full(self.n_components, np.nan))
-            if sent_res or (self.oov_strategy == "nan"):
-                res.append(sent_res)
+        for doc in documents:
+            doc_res = []
+            for sentence in doc:
+                sent_res = []
+                for word in sentence:
+                    try:
+                        embedding = self.model.wv[word]
+                        sent_res.append(embedding)
+                    except KeyError:
+                        if self.oov_strategy == "nan":
+                            sent_res.append(np.full(self.n_components, np.nan))
+                if sent_res or (self.oov_strategy == "nan"):
+                    doc_res.append(sent_res)
+            if doc_res or (self.oov_strategy == "nan"):
+                res.append(doc_res)
         return ak.Array(res)
 
     @property
