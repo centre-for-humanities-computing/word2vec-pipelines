@@ -104,25 +104,3 @@ class SpacyPreprocessor(TransformerMixin):
                 doc_res.append(sent_tokens)
             res.append(doc_res)
         return res
-
-
-class Flattener(TransformerMixin):
-    """Pipeline component that flattens an iterable along a given axis.
-
-    Parameters
-    ----------
-    axis: int, default 0
-        Axis/level of depth at which the iterable should be flattened.
-    """
-
-    def __init__(self, axis: int = 0):
-        self.axis = axis
-
-    def transform(self, X) -> list:
-        return deeplist(flatten(X, axis=self.axis))
-
-    def fit(self, X, y=None):
-        return self
-
-    def partial_fit(self, X, y=None):
-        return self
