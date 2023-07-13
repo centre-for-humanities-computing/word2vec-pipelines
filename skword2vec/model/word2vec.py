@@ -9,6 +9,24 @@ from sklearn.exceptions import NotFittedError
 from skword2vec.streams import deeplist, flatten
 
 
+def count_to_offset(counts: list[list[int]]):
+    counts_flat = ak.flatten(counts, axis=1)
+    offsets = np.cumsum(counts_flat)
+    offsets = np.concatenate(([0], offsets))
+    return ak.index.Index(offsets)
+
+
+def build_ragged_array(
+    counts: list[list[int]], embeddings: np.ndarray
+) -> ak.Array:
+    offset = count_to_offset(counts)
+    contents = ak.contents.NumpyArray(embeddings)
+    ragged = ak.contents.ListOffsetArray(offset, contents)
+    doc_sent_counts = ak.num(counts, axis=1)
+    ragged = ak.unflatten(ragged, doc_sent_counts, axis=0)
+    return ragged
+
+
 class Word2VecTransformer(BaseEstimator, TransformerMixin):
     """Scikit-learn compatible Word2Vec model.
 
@@ -146,33 +164,25 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         documents = deeplist(documents)
         if self.model is None:
             raise NotFittedError("Word2Vec model has not been fitted yet.")
-        res = []
+        counts = []
+        words = []
         for doc in documents:
-            doc_res = []
-            for sentence in doc:
-                sent_res = []
-                for word in sentence:
-                    # Trying to extract embeddings for each word
-                    try:
-                        embedding = self.model.wv[word]
-                        sent_res.append(embedding)
-                    # If unsuccessful we either add a nan word or drop it
-                    except KeyError:
-                        if self.oov_strategy == "nan":
-                            sent_res.append(np.full(self.n_components, np.nan))
-                if sent_res:
-                    doc_res.append(sent_res)
-                # If the sentence was empty and the strategy is nan,
-                # we append a sentence with one nan word.
-                elif self.oov_strategy == "nan":
-                    doc_res.append([np.full(self.n_components, np.nan)])
-            if doc_res:
-                res.append(doc_res)
-            elif self.oov_strategy == "nan":
-                # If the document was empty and the strategy is nan,
-                # we append a document with one sentence with one nan word.
-                res.append([[np.full(self.n_components, np.nan)]])
-        return ak.Array(res)
+            doc_counts = []
+            for sent in doc:
+                doc_counts.append(len(sent))  # type: ignore
+                words.extend(sent)
+            counts.append(doc_counts)
+        embeddings = np.full((len(words), self.n_components), np.nan)
+        for i_word, word in enumerate(words):
+            try:
+                embeddings[i_word, :] = self.model.wv[word]
+            except KeyError:
+                continue
+        embeddings = build_ragged_array(counts, embeddings)
+        if self.oov_strategy == "drop":
+            embeddings = ak.nan_to_none(embeddings)
+            embeddings = ak.drop_none(embeddings)
+        return embeddings
 
     @property
     def components_(self) -> np.ndarray:
