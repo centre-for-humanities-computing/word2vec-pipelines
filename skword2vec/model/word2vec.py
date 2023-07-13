@@ -123,7 +123,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
     def transform(
         self,
         sentences: Iterable[Iterable[str]],
-    ) -> list[list[ArrayLike]]:
+    ) -> ak.Array:
         """Infers word vectors for all sentences.
 
         Parameters
@@ -133,8 +133,11 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
 
         Returns
         -------
-        self
-            Fitted model.
+        awkward.Array of shape (n_sentences, n_words, n_dimensions)
+            Ragged array of word embeddings in each sentence.
+            Note that this array can potentially not be used for other
+            applications due to its awkward shape, and you will either
+            have to do pooling or padding to turn it into a numpy array.
         """
         if self.model is None:
             raise NotFittedError("Word2Vec model has not been fitted yet.")
@@ -150,7 +153,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
                         sent_res.append(np.full(self.n_components, np.nan))
             if sent_res or (self.oov_strategy == "nan"):
                 res.append(sent_res)
-        return res
+        return ak.Array(res)
 
     @property
     def components_(self) -> np.ndarray:
