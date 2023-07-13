@@ -30,7 +30,19 @@ class Padder(TransformerMixin, BaseEstimator):
         self.target = target
         self.fill_value = fill_value
 
-    def transform(self, X: ak.Array):
+    def transform(self, X) -> ak.Array:
+        """Padds ragged array along given axis.
+
+        Parameters
+        ----------
+        X: ArrayLike
+            Object that can be transformed into an Awkward Array.
+
+        Returns
+        -------
+        ak.Array
+            Awkward Array padded.
+        """
         if self.target is None:
             warnings.warn(
                 "Max padding length has not been learned during fitting, "
@@ -46,10 +58,40 @@ class Padder(TransformerMixin, BaseEstimator):
         return X
 
     def fit(self, X: ak.Array, y=None):
-        self.target = ak.max(ak.num(X, axis=self.axis))
+        """Learns maximal padding needed. If target is specified,
+        nothing happens.
+
+        Parameters
+        ----------
+        X: ArrayLike
+            Object that can be transformed into an Awkward Array.
+
+        Returns
+        -------
+        self
+        """
+        target = ak.max(ak.num(X, axis=self.axis))
+        if self.target is None:
+            self.target = target
+        elif self.target < target:
+            warnings.warn(
+                f"Target dimensionality along axis ({self.target}) is smaller "
+                f"than maximum observed during fitting ({target})"
+            )
         return self
 
     def partial_fit(self, X, y=None):
+        """Learns or updates maximal padding needed.
+
+        Parameters
+        ----------
+        X: ArrayLike
+            Object that can be transformed into an Awkward Array.
+
+        Returns
+        -------
+        self
+        """
         target = ak.max(ak.num(X, axis=self.axis))
         if self.target is None:
             self.target = target
