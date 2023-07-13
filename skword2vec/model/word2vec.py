@@ -1,5 +1,6 @@
 from typing import Iterable, Literal
 
+import awkward as ak
 import numpy as np
 from gensim.models import Word2Vec
 from numpy.typing import ArrayLike
@@ -21,6 +22,11 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
     algorithm: {'cbow', 'sg'}, default 'cbow'
         Indicates whether a continuous-bag-of-words or a skip-gram
         model should be trained.
+    oov_strategy: {'drop', 'nan'}, default 'drop'
+        Indicates whether you want out-of-vocabulary
+        words to have a vector filled with nans or
+        drop them.
+
     **kwargs
         Keyword arguments passed down to Gensim's Word2Vec model.
 
@@ -42,6 +48,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         n_jobs: int = 1,
         window: int = 5,
         algorithm: Literal["cbow", "sg"] = "cbow",
+        oov_strategy: Literal["drop", "nan"] = "drop",
         **kwargs,
     ):
         self.n_components = n_components
@@ -51,6 +58,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self.kwargs = kwargs
         self.model = None
         self.loss: list[float] = []
+        self.oov_strategy = oov_strategy
 
     def fit(self, sentences: Iterable[Iterable[str]], y=None):
         """Fits the word2vec model to the given sentences.
@@ -115,7 +123,6 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
     def transform(
         self,
         sentences: Iterable[Iterable[str]],
-        oov_strategy: Literal["drop", "nan"] = "drop",
     ) -> list[list[ArrayLike]]:
         """Infers word vectors for all sentences.
 
@@ -123,10 +130,6 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         ----------
         sentences: iterable of iterable of str
             List of sentences as list of tokens.
-        oov_strategy: {'drop', 'nan'}, default 'drop'
-            Indicates whether you want out-of-vocabulary
-            words to have a vector filled with nans or
-            drop them.
 
         Returns
         -------
@@ -143,9 +146,9 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
                     embedding = self.model.wv[word]
                     sent_res.append(embedding)
                 except KeyError:
-                    if oov_strategy == "nan":
+                    if self.oov_strategy == "nan":
                         sent_res.append(np.full(self.n_components, np.nan))
-            if sent_res or (oov_strategy == "nan"):
+            if sent_res or (self.oov_strategy == "nan"):
                 res.append(sent_res)
         return res
 
