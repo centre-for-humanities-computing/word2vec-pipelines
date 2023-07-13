@@ -3,7 +3,6 @@ from typing import Iterable, Literal
 import awkward as ak
 import numpy as np
 from gensim.models import Word2Vec
-from numpy.typing import ArrayLike
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.exceptions import NotFittedError
 
@@ -50,7 +49,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         n_jobs: int = 1,
         window: int = 5,
         algorithm: Literal["cbow", "sg"] = "cbow",
-        oov_strategy: Literal["drop", "nan"] = "drop",
+        oov_strategy: Literal["drop", "nan"] = "nan",
         **kwargs,
     ):
         self.n_components = n_components
@@ -153,16 +152,26 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
             for sentence in doc:
                 sent_res = []
                 for word in sentence:
+                    # Trying to extract embeddings for each word
                     try:
                         embedding = self.model.wv[word]
                         sent_res.append(embedding)
+                    # If unsuccessful we either add a nan word or drop it
                     except KeyError:
                         if self.oov_strategy == "nan":
                             sent_res.append(np.full(self.n_components, np.nan))
-                if sent_res or (self.oov_strategy == "nan"):
+                if sent_res:
                     doc_res.append(sent_res)
-            if doc_res or (self.oov_strategy == "nan"):
+                # If the sentence was empty and the strategy is nan,
+                # we append a sentence with one nan word.
+                elif self.oov_strategy == "nan":
+                    doc_res.append([np.full(self.n_components, np.nan)])
+            if doc_res:
                 res.append(doc_res)
+            elif self.oov_strategy == "nan":
+                # If the document was empty and the strategy is nan,
+                # we append a document with one sentence with one nan word.
+                res.append([[np.full(self.n_components, np.nan)]])
         return ak.Array(res)
 
     @property
