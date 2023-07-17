@@ -140,8 +140,12 @@ def stream_files(
                 ) from e
             elif not_found_action == "none":
                 yield None
-            else:
+            elif not_found_action == "drop":
                 continue
+            else:
+                raise ValueError(
+                    """Unrecognized `not_found_action`.
+                    Please chose one of `"exception", "none", "drop"`""")
 
 
 @reusable
