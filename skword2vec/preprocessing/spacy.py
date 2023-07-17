@@ -67,8 +67,12 @@ class SpacyPreprocessor(TransformerMixin):
             return token.orth_
         elif self.out_attribute == "NORM":
             return token.norm_
-        else:
+        elif self.out_attribute == "LEMMA":
             return token.lemma_
+        else:
+            raise ValueError(
+                """Unrecognized `out_attribute`.
+                Please chose one of `"ORTH", "NORM", "LEMMA"`""")
 
     def transform(self, X: Iterable[str]) -> list[list[list[str]]]:
         """Preprocesses document with a spaCy pipeline.
