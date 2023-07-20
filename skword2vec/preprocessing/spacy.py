@@ -29,6 +29,9 @@ class SpacyPreprocessor(TransformerMixin):
         Attribute of the token to return as the textual representation.
     sentencize: bool, default False
         Determines whether the document should be split into sentences.
+    n_jobs: int, default 1
+        Number of cores to use for preprocessing with spaCy.
+        -1 stands for all cores.
     """
 
     def __init__(
@@ -37,6 +40,7 @@ class SpacyPreprocessor(TransformerMixin):
         patterns: List[List[dict[str, Any]]],
         out_attribute: Literal["ORTH", "NORM", "LEMMA"] = "NORM",
         sentencize: bool = False,
+        n_jobs: int = 1,
     ):
         self.nlp = nlp
         self.patterns = patterns
@@ -44,6 +48,7 @@ class SpacyPreprocessor(TransformerMixin):
         self.matcher = Matcher(nlp.vocab)
         self.matcher.add("FILTER_PASS", patterns=patterns)
         self.sentencize = sentencize
+        self.n_jobs = n_jobs
 
     def fit(self, X, y=None):
         """Exists for compatiblity, doesn't do anything."""
@@ -88,7 +93,7 @@ class SpacyPreprocessor(TransformerMixin):
             List of documents represented as list of sentences
             represented as lists of tokens.
         """
-        docs = list(self.nlp.pipe(X))
+        docs = list(self.nlp.pipe(X, n_process=self.n_jobs))
         # Label all tokens according to the patterns.
         self.label_matching_tokens(docs)
         res: list[list[list[str]]] = []
@@ -108,25 +113,3 @@ class SpacyPreprocessor(TransformerMixin):
                 doc_res.append(sent_tokens)
             res.append(doc_res)
         return res
-
-
-class Flattener(TransformerMixin):
-    """Pipeline component that flattens an iterable along a given axis.
-
-    Parameters
-    ----------
-    axis: int, default 0
-        Axis/level of depth at which the iterable should be flattened.
-    """
-
-    def __init__(self, axis: int = 0):
-        self.axis = axis
-
-    def transform(self, X) -> list:
-        return deeplist(flatten(X, axis=self.axis))
-
-    def fit(self, X, y=None):
-        return self
-
-    def partial_fit(self, X, y=None):
-        return self

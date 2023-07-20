@@ -1,10 +1,30 @@
 from typing import Iterable, Literal
 
+import awkward as ak
 import numpy as np
 from gensim.models import Word2Vec
-from numpy.typing import ArrayLike
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.exceptions import NotFittedError
+
+from skword2vec.streams import deeplist, flatten
+
+
+def count_to_offset(sent_word_counts: list[int]):
+    offsets = np.cumsum(sent_word_counts)
+    offsets = np.concatenate(([0], offsets))
+    return ak.index.Index(offsets)
+
+
+def build_ragged_array(
+    sent_word_counts: list[int],
+    doc_sent_counts: list[int],
+    embeddings: np.ndarray,
+) -> ak.Array:
+    offset = count_to_offset(sent_word_counts)
+    contents = ak.contents.NumpyArray(embeddings)
+    ragged = ak.contents.ListOffsetArray(offset, contents)
+    ragged = ak.unflatten(ragged, doc_sent_counts, axis=0)
+    return ragged
 
 
 class Word2VecTransformer(BaseEstimator, TransformerMixin):
@@ -21,6 +41,15 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
     algorithm: {'cbow', 'sg'}, default 'cbow'
         Indicates whether a continuous-bag-of-words or a skip-gram
         model should be trained.
+    oov_strategy: {'drop', 'nan'}, default 'drop'
+        Indicates whether you want out-of-vocabulary
+        words to have a vector filled with nans or
+        drop them.
+    frozen: bool, default False
+        Indicates whether the model should be frozen in the pipeline.
+        This can be advantageous when you want to train other models down
+        the pipeline from the outputs of a pretrained Word2Vec model.
+
     **kwargs
         Keyword arguments passed down to Gensim's Word2Vec model.
 
@@ -42,6 +71,8 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         n_jobs: int = 1,
         window: int = 5,
         algorithm: Literal["cbow", "sg"] = "cbow",
+        oov_strategy: Literal["drop", "nan"] = "nan",
+        frozen: bool = False,
         **kwargs,
     ):
         self.n_components = n_components
@@ -51,14 +82,55 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self.kwargs = kwargs
         self.model = None
         self.loss: list[float] = []
+        self.oov_strategy = oov_strategy
+        self.frozen = frozen
 
-    def fit(self, sentences: Iterable[Iterable[str]], y=None):
-        """Fits the word2vec model to the given sentences.
+    @classmethod
+    def from_gensim(
+        cls,
+        model: Word2Vec,
+        oov_strategy: Literal["drop", "nan"] = "nan",
+        frozen: bool = False,
+    ):
+        """Creates Word2VecTransformer from the given Gensim Word2Vec model.
 
         Parameters
         ----------
-        sentences: iterable of iterable of str
-            List of sentences as list of tokens.
+        model: Word2Vec
+            Gensim Word2Vec object.
+        oov_strategy: {'drop', 'nan'}, default 'drop'
+            Indicates whether you want out-of-vocabulary
+            words to have a vector filled with nans or
+            drop them.
+        frozen: bool, default False
+            Indicates whether the model should be frozen in the pipeline.
+            This can be advantageous when you want to train other models down
+            the pipeline from the outputs of a pretrained Word2Vec model.
+
+
+        Returns
+        -------
+        Word2VecTransformer
+            Transformer object with the given Word2Vec model.
+        """
+        res = cls(
+            n_components=model.vector_size,
+            window=model.window,
+            algorithm="sg" if model.sg else "cbow",
+            n_jobs=model.workers,
+            oov_strategy=oov_strategy,
+            frozen=frozen,
+        )
+        res.model = model
+        return res
+
+    def fit(self, documents: Iterable[Iterable[Iterable[str]]], y=None):
+        """Fits a new word2vec model to the given sentences.
+
+        Parameters
+        ----------
+        documents: deep iterable with dimensions (documents, sentences, words)
+            Words in each sentence in each document.
         y: None
             Ignored. Exists for compatibility.
 
@@ -67,6 +139,8 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self
             Fitted model.
         """
+        if self.frozen:
+            return self
         self.model = Word2Vec(
             vector_size=self.n_components,
             window=self.window,
@@ -74,16 +148,18 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
             workers=self.n_jobs,
             **self.kwargs,
         )
-        self.partial_fit(sentences)
+        self.partial_fit(documents)
         return self
 
-    def partial_fit(self, sentences: Iterable[Iterable[str]], y=None):
+    def partial_fit(
+        self, documents: Iterable[Iterable[Iterable[str]]], y=None
+    ):
         """Partially fits word2vec model (online fitting).
 
         Parameters
         ----------
-        sentences: iterable of iterable of str
-            List of sentences as list of tokens.
+        documents: deep iterable with dimensions (documents, sentences, words)
+            Words in each sentence in each document.
         y: None
             Ignored. Exists for compatibility.
 
@@ -92,6 +168,10 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self
             Fitted model.
         """
+        if self.frozen:
+            return self
+        sentences = flatten(documents, axis=0)
+        sentences = deeplist(sentences)
         if self.model is None:
             self.model = Word2Vec(
                 vector_size=self.n_components,
@@ -113,41 +193,47 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(
-        self,
-        sentences: Iterable[Iterable[str]],
-        oov_strategy: Literal["drop", "nan"] = "drop",
-    ) -> list[list[ArrayLike]]:
+        self, documents: Iterable[Iterable[Iterable[str]]]
+    ) -> ak.Array:
         """Infers word vectors for all sentences.
 
         Parameters
         ----------
-        sentences: iterable of iterable of str
-            List of sentences as list of tokens.
-        oov_strategy: {'drop', 'nan'}, default 'drop'
-            Indicates whether you want out-of-vocabulary
-            words to have a vector filled with nans or
-            drop them.
+        documents: deep iterable with dimensions (documents, sentences, words)
+            Words in each sentence in each document.
 
         Returns
         -------
-        self
-            Fitted model.
+        awkward.Array with dimensions (documents, sentences, words, dimensions)
+            Ragged array of word embeddings in each sentence in each document.
+            Note that this array can potentially not be used for other
+            applications due to its awkward shape, and you will either
+            have to do pooling or padding to turn it into a numpy array.
         """
+        documents = deeplist(documents)
         if self.model is None:
             raise NotFittedError("Word2Vec model has not been fitted yet.")
-        res = []
-        for sentence in sentences:
-            sent_res = []
-            for word in sentence:
-                try:
-                    embedding = self.model.wv[word]
-                    sent_res.append(embedding)
-                except KeyError:
-                    if oov_strategy == "nan":
-                        sent_res.append(np.full(self.n_components, np.nan))
-            if sent_res or (oov_strategy == "nan"):
-                res.append(sent_res)
-        return res
+        sent_word_counts = []
+        doc_sent_counts = []
+        words = []
+        for doc in documents:
+            doc_sent_counts.append(len(doc))  # type: ignore
+            for sent in doc:
+                sent_word_counts.append(len(sent))  # type: ignore
+                words.extend(sent)
+        embeddings = np.full((len(words), self.n_components), np.nan)
+        for i_word, word in enumerate(words):
+            try:
+                embeddings[i_word, :] = self.model.wv[word]
+            except KeyError:
+                continue
+        embeddings = build_ragged_array(
+            sent_word_counts, doc_sent_counts, embeddings
+        )
+        if self.oov_strategy == "drop":
+            embeddings = ak.nan_to_none(embeddings)
+            embeddings = ak.drop_none(embeddings)
+        return embeddings
 
     @property
     def components_(self) -> np.ndarray:
@@ -162,22 +248,36 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         return np.array(self.model.wv.index_to_key)
 
     @classmethod
-    def load(cls, path: str):
+    def load(
+        cls,
+        path: str,
+        oov_strategy: Literal["drop", "nan"],
+        frozen: bool = False,
+    ):
         """Loads model from disk.
 
         Parameters
         ----------
         path: str
             Path to Word2Vec model.
+        oov_strategy: {'drop', 'nan'}, default 'drop'
+            Indicates whether you want out-of-vocabulary
+            words to have a vector filled with nans or
+            drop them.
+        frozen: bool, default False
+            Indicates whether the model should be frozen in the pipeline.
+            This can be advantageous when you want to train other models down
+            the pipeline from the outputs of a pretrained Word2Vec model.
+
+
 
         Returns
         -------
         Word2VecTransformer
             Transformer component.
         """
-        res = cls()
-        res.model = Word2Vec.load(path)
-        res.n_components = res.model.vector_size
+        model = Word2Vec.load(path)
+        res = cls.from_gensim(model, oov_strategy=oov_strategy, frozen=frozen)
         return res
 
     def save(self, path: str):
