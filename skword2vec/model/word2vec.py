@@ -9,20 +9,20 @@ from sklearn.exceptions import NotFittedError
 from skword2vec.streams import deeplist, flatten
 
 
-def count_to_offset(counts: list[list[int]]):
-    counts_flat = ak.flatten(counts, axis=1)
-    offsets = np.cumsum(counts_flat)
+def count_to_offset(sent_word_counts: list[int]):
+    offsets = np.cumsum(sent_word_counts)
     offsets = np.concatenate(([0], offsets))
     return ak.index.Index(offsets)
 
 
 def build_ragged_array(
-    counts: list[list[int]], embeddings: np.ndarray
+    sent_word_counts: list[int],
+    doc_sent_counts: list[int],
+    embeddings: np.ndarray,
 ) -> ak.Array:
-    offset = count_to_offset(counts)
+    offset = count_to_offset(sent_word_counts)
     contents = ak.contents.NumpyArray(embeddings)
     ragged = ak.contents.ListOffsetArray(offset, contents)
-    doc_sent_counts = ak.num(counts, axis=1)
     ragged = ak.unflatten(ragged, doc_sent_counts, axis=0)
     return ragged
 
@@ -164,21 +164,23 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         documents = deeplist(documents)
         if self.model is None:
             raise NotFittedError("Word2Vec model has not been fitted yet.")
-        counts = []
+        sent_word_counts = []
+        doc_sent_counts = []
         words = []
         for doc in documents:
-            doc_counts = []
+            doc_sent_counts.append(len(doc))  # type: ignore
             for sent in doc:
-                doc_counts.append(len(sent))  # type: ignore
+                sent_word_counts.append(len(sent))  # type: ignore
                 words.extend(sent)
-            counts.append(doc_counts)
         embeddings = np.full((len(words), self.n_components), np.nan)
         for i_word, word in enumerate(words):
             try:
                 embeddings[i_word, :] = self.model.wv[word]
             except KeyError:
                 continue
-        embeddings = build_ragged_array(counts, embeddings)
+        embeddings = build_ragged_array(
+            sent_word_counts, doc_sent_counts, embeddings
+        )
         if self.oov_strategy == "drop":
             embeddings = ak.nan_to_none(embeddings)
             embeddings = ak.drop_none(embeddings)
