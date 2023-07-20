@@ -45,6 +45,10 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         Indicates whether you want out-of-vocabulary
         words to have a vector filled with nans or
         drop them.
+    frozen: bool, default False
+        Indicates whether the model should be frozen in the pipeline.
+        This can be advantageous when you want to train other models down
+        the pipeline from the outputs of a pretrained Word2Vec model.
 
     **kwargs
         Keyword arguments passed down to Gensim's Word2Vec model.
@@ -68,6 +72,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         window: int = 5,
         algorithm: Literal["cbow", "sg"] = "cbow",
         oov_strategy: Literal["drop", "nan"] = "nan",
+        frozen: bool = False,
         **kwargs,
     ):
         self.n_components = n_components
@@ -78,10 +83,14 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self.model = None
         self.loss: list[float] = []
         self.oov_strategy = oov_strategy
+        self.frozen = frozen
 
     @classmethod
     def from_gensim(
-        cls, model: Word2Vec, oov_strategy: Literal["drop", "nan"] = "nan"
+        cls,
+        model: Word2Vec,
+        oov_strategy: Literal["drop", "nan"] = "nan",
+        frozen: bool = False,
     ):
         """Creates Word2VecTransformer from the given Gensim Word2Vec model.
 
@@ -93,6 +102,11 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
             Indicates whether you want out-of-vocabulary
             words to have a vector filled with nans or
             drop them.
+        frozen: bool, default False
+            Indicates whether the model should be frozen in the pipeline.
+            This can be advantageous when you want to train other models down
+            the pipeline from the outputs of a pretrained Word2Vec model.
+
 
         Returns
         -------
@@ -105,6 +119,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
             algorithm="sg" if model.sg else "cbow",
             n_jobs=model.workers,
             oov_strategy=oov_strategy,
+            frozen=frozen,
         )
         res.model = model
         return res
@@ -124,6 +139,8 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self
             Fitted model.
         """
+        if self.frozen:
+            return self
         self.model = Word2Vec(
             vector_size=self.n_components,
             window=self.window,
@@ -151,6 +168,8 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self
             Fitted model.
         """
+        if self.frozen:
+            return self
         sentences = flatten(documents, axis=0)
         sentences = deeplist(sentences)
         if self.model is None:
@@ -229,7 +248,12 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         return np.array(self.model.wv.index_to_key)
 
     @classmethod
-    def load(cls, path: str, oov_strategy: Literal["drop", "nan"]):
+    def load(
+        cls,
+        path: str,
+        oov_strategy: Literal["drop", "nan"],
+        frozen: bool = False,
+    ):
         """Loads model from disk.
 
         Parameters
@@ -240,6 +264,11 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
             Indicates whether you want out-of-vocabulary
             words to have a vector filled with nans or
             drop them.
+        frozen: bool, default False
+            Indicates whether the model should be frozen in the pipeline.
+            This can be advantageous when you want to train other models down
+            the pipeline from the outputs of a pretrained Word2Vec model.
+
 
 
         Returns
@@ -248,7 +277,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
             Transformer component.
         """
         model = Word2Vec.load(path)
-        res = cls.from_gensim(model, oov_strategy=oov_strategy)
+        res = cls.from_gensim(model, oov_strategy=oov_strategy, frozen=frozen)
         return res
 
     def save(self, path: str):
