@@ -79,8 +79,38 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         self.loss: list[float] = []
         self.oov_strategy = oov_strategy
 
+    @classmethod
+    def from_gensim(
+        cls, model: Word2Vec, oov_strategy: Literal["drop", "nan"] = "nan"
+    ):
+        """Creates Word2VecTransformer from the given Gensim Word2Vec model.
+
+        Parameters
+        ----------
+        model: Word2Vec
+            Gensim Word2Vec object.
+        oov_strategy: {'drop', 'nan'}, default 'drop'
+            Indicates whether you want out-of-vocabulary
+            words to have a vector filled with nans or
+            drop them.
+
+        Returns
+        -------
+        Word2VecTransformer
+            Transformer object with the given Word2Vec model.
+        """
+        res = cls(
+            n_components=model.vector_size,
+            window=model.window,
+            algorithm="sg" if model.sg else "cbow",
+            n_jobs=model.workers,
+            oov_strategy=oov_strategy,
+        )
+        res.model = model
+        return res
+
     def fit(self, documents: Iterable[Iterable[Iterable[str]]], y=None):
-        """Fits the word2vec model to the given sentences.
+        """Fits a new word2vec model to the given sentences.
 
         Parameters
         ----------
@@ -199,22 +229,26 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         return np.array(self.model.wv.index_to_key)
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str, oov_strategy: Literal["drop", "nan"]):
         """Loads model from disk.
 
         Parameters
         ----------
         path: str
             Path to Word2Vec model.
+        oov_strategy: {'drop', 'nan'}, default 'drop'
+            Indicates whether you want out-of-vocabulary
+            words to have a vector filled with nans or
+            drop them.
+
 
         Returns
         -------
         Word2VecTransformer
             Transformer component.
         """
-        res = cls()
-        res.model = Word2Vec.load(path)
-        res.n_components = res.model.vector_size
+        model = Word2Vec.load(path)
+        res = cls.from_gensim(model, oov_strategy=oov_strategy)
         return res
 
     def save(self, path: str):
