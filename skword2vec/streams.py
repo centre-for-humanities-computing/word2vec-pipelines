@@ -145,20 +145,26 @@ def stream_files(
             else:
                 raise ValueError(
                     """Unrecognized `not_found_action`.
-                    Please chose one of `"exception", "none", "drop"`""")
+                    Please chose one of `"exception", "none", "drop"`"""
+                )
 
 
 @reusable
-def flatten(nested: Iterable, axis: int = 0) -> Iterable:
+def flatten_stream(nested: Iterable, axis: int = 1) -> Iterable:
     """Turns nested stream into a flat stream.
     If multiple levels are nested, the iterable will be flattenned along
     the given axis.
+
+    To match the behaviour of Awkward Array flattening, axis=0 only
+    removes None elements from the array along the outermost axis.
+
+    Negative axis values are not yet supported.
 
     Parameters
     ----------
     nested: iterable
         Iterable of iterables of unknown depth.
-    axis: int, default 0
+    axis: int, default 1
         Axis/level of depth at which the iterable should be flattened.
 
     Returns
@@ -171,12 +177,14 @@ def flatten(nested: Iterable, axis: int = 0) -> Iterable:
             f"Nesting is too deep, values at level {axis} are not iterables"
         )
     if axis == 0:
+        return (elem for elem in nested if elem is not None and (elem != []))
+    if axis == 1:
         for sub in nested:
             for elem in sub:
                 yield elem
-    elif axis > 0:
+    elif axis > 1:
         for sub in nested:
-            yield flatten(sub, axis=axis - 1)
+            yield flatten_stream(sub, axis=axis - 1)
     else:
         raise ValueError("Flattening axis needs to be greater than 0.")
 
