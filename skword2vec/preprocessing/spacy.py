@@ -1,4 +1,4 @@
-from typing import Any, Iterable, List, Literal, Optional
+from typing import Any, Iterable, Literal, Optional
 
 from sklearn.base import TransformerMixin
 from spacy.language import Language
@@ -9,6 +9,8 @@ from spacy.tokens import Doc, Token
 if not Token.has_extension("filter_pass"):
     Token.set_extension("filter_pass", default=False)
 
+ALPHA_STOP_PATTERN = [[{"IS_ALPHA": True, "IS_STOP": False}]]
+
 
 class SpacyPreprocessor(TransformerMixin):
     """Sklearn pipeline component to preprocess texts with a spaCy pipeline.
@@ -17,12 +19,14 @@ class SpacyPreprocessor(TransformerMixin):
     ----------
     nlp: Language
         Spacy NLP pipeline.
-    patterns: list of list of dict
+    patterns: list of list of dict or None, default None
         List of patterns of tokens to accept and propagate.
         Patterns follow spaCy's Matcher syntax
         (https://spacy.io/usage/rule-based-matching#matcher)
         Every token that is part of a matching pattern will be passed
         forward, all others will be discarded.
+        If not specified, only alphabetical tokens are allowed and
+        stop words get removed.
     out_attribute: {'ORTH', 'NORM', 'LEMMA'}, default 'NORM'
         Attribute of the token to return as the textual representation.
     sentencize: bool, default False
@@ -35,16 +39,19 @@ class SpacyPreprocessor(TransformerMixin):
     def __init__(
         self,
         nlp: Language,
-        patterns: List[List[dict[str, Any]]],
+        patterns: Optional[list[list[dict[str, Any]]]] = None,
         out_attribute: Literal["ORTH", "NORM", "LEMMA"] = "NORM",
         sentencize: bool = False,
         n_jobs: int = 1,
     ):
         self.nlp = nlp
-        self.patterns = patterns
+        if patterns is not None:
+            self.patterns = patterns
+        else:
+            self.patterns = ALPHA_STOP_PATTERN
         self.out_attribute = out_attribute
         self.matcher = Matcher(nlp.vocab)
-        self.matcher.add("FILTER_PASS", patterns=patterns)
+        self.matcher.add("FILTER_PASS", patterns=self.patterns)
         self.sentencize = sentencize
         self.n_jobs = n_jobs
 
