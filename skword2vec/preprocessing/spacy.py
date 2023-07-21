@@ -5,8 +5,6 @@ from spacy.language import Language
 from spacy.matcher import Matcher
 from spacy.tokens import Doc, Token
 
-from skword2vec.streams import deeplist, flatten
-
 # We create a new extension on tokens.
 if not Token.has_extension("filter_pass"):
     Token.set_extension("filter_pass", default=False)
@@ -77,7 +75,8 @@ class SpacyPreprocessor(TransformerMixin):
         else:
             raise ValueError(
                 """Unrecognized `out_attribute`.
-                Please chose one of `"ORTH", "NORM", "LEMMA"`""")
+                Please chose one of `"ORTH", "NORM", "LEMMA"`"""
+            )
 
     def transform(self, X: Iterable[str]) -> list[list[list[str]]]:
         """Preprocesses document with a spaCy pipeline.
