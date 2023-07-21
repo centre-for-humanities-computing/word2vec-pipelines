@@ -102,6 +102,7 @@ class DummyPreprocessor(TransformerMixin, BaseEstimator):
                 text = text.translate(punct_to_space)
         if self.lowercase:
             text = text.lower()
+        text = text.strip()
         # We split on dot
         if self.sentencize:
             sentences = text.split(".")
@@ -109,6 +110,8 @@ class DummyPreprocessor(TransformerMixin, BaseEstimator):
             sentences = [text]
         res = []
         for sentence in sentences:
+            if not sentence:
+                continue
             sentence_tokens = []
             # Tokens are split on whitespace
             for token in sentence.split():
