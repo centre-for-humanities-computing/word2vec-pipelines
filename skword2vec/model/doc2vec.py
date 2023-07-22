@@ -215,6 +215,7 @@ class Doc2VecVectorizer(BaseEstimator, TransformerMixin):
             tagged_docs = None
         self.model = Doc2Vec(
             documents=tagged_docs,
+            dm=int(self.algorithm == "dm"),
             vector_size=self.n_components,
             window=self.window,
             workers=self.n_jobs,
