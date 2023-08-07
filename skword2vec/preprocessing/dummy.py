@@ -1,9 +1,12 @@
 import importlib
 import string
 from multiprocessing import Pool
-from typing import Iterable, Optional, Union
+from typing import Iterable, Union
 
+import awkward as ak
 from sklearn.base import BaseEstimator, TransformerMixin
+
+from skword2vec.preprocessing.utils import create_string_array
 
 punct_without_dot = "\"#$%&'()*+,-/:<=>@[\\]^_`{|}~"
 sentence_seps = "?!.;"
@@ -52,7 +55,7 @@ class DummyPreprocessor(TransformerMixin, BaseEstimator):
 
     def __init__(
         self,
-        stop_words: Union[str, list[str], None],
+        stop_words: Union[str, list[str], None] = None,
         lowercase: bool = True,
         remove_digits: bool = True,
         remove_punctuation: bool = True,
@@ -120,7 +123,7 @@ class DummyPreprocessor(TransformerMixin, BaseEstimator):
             res.append(sentence_tokens)
         return res
 
-    def transform(self, X: Iterable[str]) -> list[list[list[str]]]:
+    def transform(self, X: Iterable[str]) -> ak.Array:
         """Preprocesses document with a dummy pipeline.
 
         Parameters
@@ -130,15 +133,15 @@ class DummyPreprocessor(TransformerMixin, BaseEstimator):
 
         Returns
         -------
-        list of list of list of str
+        ak.Array
             List of documents represented as list of sentences
             represented as lists of tokens.
         """
         if self.n_jobs == 1:
-            res = map(self.process_string, X)
+            res = list(map(self.process_string, X))
         else:
             with Pool(self.n_jobs) as pool:
-                res = pool.imap(
-                    self.process_string, X, chunksize=self.chunksize
+                res = list(
+                    pool.imap(self.process_string, X, chunksize=self.chunksize)
                 )
-        return list(res)
+        return create_string_array(res)

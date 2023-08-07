@@ -50,10 +50,10 @@ class Stream:
 
     def evaluate(self, deep: bool = False):
         if deep:
-            evaluator = deeplist
+            _iterable = deeplist(self.iterable)
         else:
-            evaluator = list
-        return self.pipe(evaluator)
+            _iterable = list(self.iterable)
+        return Stream(_iterable)
 
     def read_files(
         self,
@@ -61,7 +61,7 @@ class Stream:
         not_found_action: Literal["exception", "none", "drop"] = "exception",
     ):
         return self.pipe(
-            reusable(stream_files),
+            stream_files,
             lines=lines,
             not_found_action=not_found_action,
         )
@@ -69,13 +69,8 @@ class Stream:
     def json(self):
         return self.map(json.loads)
 
-    def grab(self, column: str):
-        @reusable
-        def _func(iterable):
-            for record in iterable:
-                yield record[column]
-
-        return self.pipe(_func)
+    def grab(self, field: str):
+        return self.map(lambda record: record[field])
 
     def flatten(self, axis=1):
         return self.pipe(flatten_stream, axis=axis)

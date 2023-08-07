@@ -1,9 +1,12 @@
 from typing import Any, Iterable, Literal, Optional
 
+import awkward as ak
 from sklearn.base import TransformerMixin
 from spacy.language import Language
 from spacy.matcher import Matcher
 from spacy.tokens import Doc, Token
+
+from skword2vec.preprocessing.utils import create_string_array
 
 # We create a new extension on tokens.
 if not Token.has_extension("filter_pass"):
@@ -85,7 +88,7 @@ class SpacyPreprocessor(TransformerMixin):
                 Please chose one of `"ORTH", "NORM", "LEMMA"`"""
             )
 
-    def transform(self, X: Iterable[str]) -> list[list[list[str]]]:
+    def transform(self, X: Iterable[str]) -> ak.Array:
         """Preprocesses document with a spaCy pipeline.
 
         Parameters
@@ -95,7 +98,7 @@ class SpacyPreprocessor(TransformerMixin):
 
         Returns
         -------
-        list of list of list of str
+        ak.Array
             List of documents represented as list of sentences
             represented as lists of tokens.
         """
@@ -118,4 +121,4 @@ class SpacyPreprocessor(TransformerMixin):
                 ]
                 doc_res.append(sent_tokens)
             res.append(doc_res)
-        return res
+        return create_string_array(res)
