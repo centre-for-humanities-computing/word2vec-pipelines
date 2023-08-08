@@ -4,7 +4,7 @@ import awkward as ak
 from numpy.typing import ArrayLike
 from sklearn.base import BaseEstimator, TransformerMixin
 
-from skword2vec.streams import flatten_stream
+from skword2vec.streams.utils import flatten_stream
 
 
 class StreamFlattener(TransformerMixin, BaseEstimator):
