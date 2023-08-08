@@ -233,6 +233,8 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         if self.oov_strategy == "drop":
             embeddings = ak.nan_to_none(embeddings)
             embeddings = ak.drop_none(embeddings)
+        if self.oov_strategy == "nan":
+            embeddings = ak.fill_none(embeddings, np.nan)
         return embeddings
 
     @property
