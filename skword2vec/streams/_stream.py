@@ -4,6 +4,9 @@ from dataclasses import dataclass
 from itertools import islice
 from typing import Callable, Iterable, Literal
 
+from sklearn.base import BaseEstimator
+
+from skword2vec.streams.filtering import filter_batches
 from skword2vec.streams.utils import (
     chunk,
     deeplist,
@@ -76,3 +79,6 @@ class Stream:
 
     def chunk(self, size: int):
         return self.pipe(chunk, chunk_size=size)
+
+    def filter_batches(self, estimator: BaseEstimator):
+        return self.pipe(filter_batches, estimator=estimator)
