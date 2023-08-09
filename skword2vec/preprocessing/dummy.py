@@ -1,7 +1,7 @@
 import importlib
 import string
 from multiprocessing import Pool
-from typing import Iterable, Optional, Union
+from typing import Iterable, Union
 
 from sklearn.base import BaseEstimator, TransformerMixin
 

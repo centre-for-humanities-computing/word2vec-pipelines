@@ -12,19 +12,19 @@ Here is an example of how you would set up a pipeline for streaming and chunking
 ```python
 from functools import partial
 import json
-from skword2vec.streams import pipe_streams, stream_files, chunk
-
-stream_chunks = pipe_streams(
-  partial(stream_files, lines=True),
-  partial(map, json.loads),
-  partial(map, lambda record: records["content"]),
-  partial(chunk, chunk_size=10_000),
-)
+from skword2vec.streams import Stream
 
 # let's say you have a list of file paths
 files: list[str] = [...]
 
-chunks = stream_chunks(files)
+text_chunks = (
+  Stream(files)
+  .read_files(lines=True)
+  .json()
+  .grab("content")
+  .chunk(10_000)
+)
+
 ```
 
 ### Preprocessors
@@ -79,9 +79,9 @@ We do not provide built in training loops, so these have to be manually written 
 Here's an example of a training loop that fits the pipeline over all chunks and saves a checkpoint after each chunk to disk:
 
 ```python
-for i_chunk, text_chunk in enumerate(chunks):
+for i_chunk, text_chunk in enumerate(text_chunks):
   embedding_pipeline.partial_fit(text_chunk)
-  embedding_model.save(f"checkpoints/model_checkpoint_{i_chunk}.word2vec")
+  embedding_pipeline["word2vecvectorizer"].save(f"checkpoints/model_checkpoint_{i_chunk}.word2vec")
 ```
 
 More tools coming in the future for unsupervised/zero-shot and rule based text filtering to build

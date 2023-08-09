@@ -6,7 +6,7 @@ from gensim.models import Word2Vec
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.exceptions import NotFittedError
 
-from skword2vec.streams import deeplist, flatten_stream
+from skword2vec.streams.utils import deeplist, flatten_stream
 
 
 def count_to_offset(sent_word_counts: list[int]):

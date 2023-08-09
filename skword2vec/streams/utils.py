@@ -2,7 +2,7 @@
 import functools
 import random
 from itertools import islice
-from typing import Callable, Iterable, List, Literal, Optional, TypeVar, Union
+from typing import Callable, Iterable, List, Literal, Optional, TypeVar
 
 
 def pipe_streams(*transforms: Callable) -> Callable:
@@ -64,7 +64,6 @@ def reusable(gen_func: Callable) -> Callable:
 U = TypeVar("U")
 
 
-@reusable
 def chunk(
     iterable: Iterable[U], chunk_size: int, sample_size: Optional[int] = None
 ) -> Iterable[List[U]]:
@@ -99,7 +98,6 @@ def chunk(
             buffer = []
 
 
-@reusable
 def stream_files(
     paths: Iterable[str],
     lines: bool = False,
@@ -149,7 +147,6 @@ def stream_files(
                 )
 
 
-@reusable
 def flatten_stream(nested: Iterable, axis: int = 1) -> Iterable:
     """Turns nested stream into a flat stream.
     If multiple levels are nested, the iterable will be flattenned along
