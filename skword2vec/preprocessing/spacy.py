@@ -92,7 +92,9 @@ class SpacyPreprocessor(TransformerMixin):
 
     def token_to_str(self, token: Token) -> str:
         """Returns textual representation of token."""
-        attributes = [getattr(token, attr) for attr in self.out_attrs]
+        attributes = [
+            getattr(token, ATTRIBUTES[attr]) for attr in self.out_attrs
+        ]
         return self.attr_sep.join(attributes)
 
     def transform(self, X: Iterable[str]) -> list[list[list[str]]]:
