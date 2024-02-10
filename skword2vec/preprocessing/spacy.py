@@ -11,6 +11,18 @@ if not Token.has_extension("filter_pass"):
 
 ALPHA_STOP_PATTERN = [[{"IS_ALPHA": True, "IS_STOP": False}]]
 
+ATTRIBUTES = {
+    "ORTH": "orth_",
+    "NORM": "norm_",
+    "LEMMA": "lemma_",
+    "UPOS": "pos_",
+    "TAG": "tag_",
+    "DEP": "dep_",
+    "LOWER": "lower_",
+    "SHAPE": "shape_",
+    "ENT_TYPE": "ent_type_",
+}
+
 
 class SpacyPreprocessor(TransformerMixin):
     """Sklearn pipeline component to preprocess texts with a spaCy pipeline.
@@ -27,8 +39,10 @@ class SpacyPreprocessor(TransformerMixin):
         forward, all others will be discarded.
         If not specified, only alphabetical tokens are allowed and
         stop words get removed.
-    out_attribute: {'ORTH', 'NORM', 'LEMMA'}, default 'NORM'
-        Attribute of the token to return as the textual representation.
+    out_attrs: iterable of str, default ('NORM', )
+        List of attributes to include in the output for each token.
+    attr_sep: str, default '|'
+        Character to separate the output attributes.
     sentencize: bool, default False
         Determines whether the document should be split into sentences.
     n_jobs: int, default 1
@@ -40,7 +54,8 @@ class SpacyPreprocessor(TransformerMixin):
         self,
         nlp: Language,
         patterns: Optional[list[list[dict[str, Any]]]] = None,
-        out_attribute: Literal["ORTH", "NORM", "LEMMA"] = "NORM",
+        out_attrs: Iterable[str] = ("NORM",),
+        attr_sep: str = "|",
         sentencize: bool = False,
         n_jobs: int = 1,
     ):
@@ -49,7 +64,11 @@ class SpacyPreprocessor(TransformerMixin):
             self.patterns = patterns
         else:
             self.patterns = ALPHA_STOP_PATTERN
-        self.out_attribute = out_attribute
+        self.out_attrs = tuple(out_attrs)
+        for attr in self.out_attrs:
+            if attr not in ATTRIBUTES:
+                raise ValueError(f"{attr} is not a valid out attribute.")
+        self.attr_sep = attr_sep
         self.matcher = Matcher(nlp.vocab)
         self.matcher.add("FILTER_PASS", patterns=self.patterns)
         self.sentencize = sentencize
@@ -73,17 +92,10 @@ class SpacyPreprocessor(TransformerMixin):
 
     def token_to_str(self, token: Token) -> str:
         """Returns textual representation of token."""
-        if self.out_attribute == "ORTH":
-            return token.orth_
-        elif self.out_attribute == "NORM":
-            return token.norm_
-        elif self.out_attribute == "LEMMA":
-            return token.lemma_
-        else:
-            raise ValueError(
-                """Unrecognized `out_attribute`.
-                Please chose one of `"ORTH", "NORM", "LEMMA"`"""
-            )
+        attributes = [
+            getattr(token, ATTRIBUTES[attr]) for attr in self.out_attrs
+        ]
+        return self.attr_sep.join(attributes)
 
     def transform(self, X: Iterable[str]) -> list[list[list[str]]]:
         """Preprocesses document with a spaCy pipeline.
