@@ -27,7 +27,7 @@ def build_ragged_array(
     return ragged
 
 
-class Word2VecTransformer(BaseEstimator, TransformerMixin):
+class Word2VecVectorizer(BaseEstimator, TransformerMixin):
     """Scikit-learn compatible Word2Vec model.
 
     Parameters
@@ -92,7 +92,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
         oov_strategy: Literal["drop", "nan"] = "nan",
         frozen: bool = False,
     ):
-        """Creates Word2VecTransformer from the given Gensim Word2Vec model.
+        """Creates Word2VecVectorizer from the given Gensim Word2Vec model.
 
         Parameters
         ----------
@@ -110,7 +110,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
 
         Returns
         -------
-        Word2VecTransformer
+        Word2VecVectorizer
             Transformer object with the given Word2Vec model.
         """
         res = cls(
@@ -275,7 +275,7 @@ class Word2VecTransformer(BaseEstimator, TransformerMixin):
 
         Returns
         -------
-        Word2VecTransformer
+        Word2VecVectorizer
             Transformer component.
         """
         model = Word2Vec.load(path)
